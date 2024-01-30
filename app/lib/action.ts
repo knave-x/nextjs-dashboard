@@ -3,6 +3,26 @@ import { z } from 'zod';
 import { sql } from '@vercel/postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { signIn } from '@/auth';
+import { AuthError } from 'next-auth';
+import argon2 from 'argon2';
+import bcrypt from 'bcrypt';
+
+const UserRegistrationSchema = z.object({
+   id: z.string(),
+  name: z.string(),
+  email: z.string().email({
+    message: 'Please enter a valid email address.',
+  }),
+  password: z.string().min(6, {
+    message: 'Password must be at least 6 characters long.',
+  }),
+  confirmPassword: z
+    .string()
+    .refine((data) => data.confirmPassword === data.password, {
+      message: 'Passwords do not match.',
+    }),
+});
 
 const FormSchema = z.object({
   id: z.string(),
@@ -87,7 +107,7 @@ export async function updateInvoice(id: string, formData: FormData) {
 }
 
 export async function deleteInvoice(id: string) {
-  throw new Error('Failed to Delete Invoice');
+  // throw new Error('Failed to Delete Invoice');
   try {
     await sql`DELETE FROM invoices WHERE id = ${id}`;
     revalidatePath('/dashboard/invoices');
@@ -95,4 +115,88 @@ export async function deleteInvoice(id: string) {
   } catch (error) {
     return { message: 'Database Error: Failed to Delete Invoice.' };
   }
+}
+
+export async function authenticate(
+  prevState: string | undefined,
+  formData: FormData,
+) {
+  try {
+    await signIn('credentials', formData);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      switch (error.type) {
+        case 'CredentialsSignin':
+          return 'Invalid credentials.';
+        default:
+          return 'Something went wrong.';
+      }
+    }
+    throw error;
+  }
+}
+
+// export async function signUpUser( email, password, confirmPassword) {
+
+//   console.log('Password:', password);
+//   console.log('Confirm Password:', confirmPassword);
+//   if (password !== confirmPassword) {
+//     return { success: false, message: 'Passwords do not match.' };
+//   }
+
+//   // Şifreyi güvenli bir şekilde hashleme
+//   const hashedPassword = await argon2.hash(password);
+
+//   try {
+//     // Kullanıcıyı veritabanına ekleme
+//     await sql`
+//       INSERT INTO users ( email, password)
+//       VALUES ( ${email}, ${hashedPassword})
+//     `;
+
+//     return { success: true, message: 'User signed up successfully.' };
+//   } catch (error) {
+//     console.error('Database Error:', error);
+//     return { success: false, message: 'Failed to sign up user.' };
+//   }
+// }
+
+export async function signUpUser(prevState: State, formData: FormData) {
+  const validatedFields = UserRegistrationSchema.safeParse({
+    email: formData.get('email'),
+    name:formData.get('name'),
+    password: formData.get('password'),
+    confirmPassword: formData.get('confirmPassword'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Uye olurken hata.',
+    };
+  }
+
+  const { email, name, password, confirmPassword } = validatedFields.data;
+
+  // Şifreyi güvenli bir şekilde hashleme
+  // const hashedPassword = await argon2.hash(password);
+  // const date = new Date().toISOString().split('T')[0];
+  const saltRounds = 10; // salt için gerekli tur sayısı
+  const hashedPassword = await bcrypt.hash(password, saltRounds);
+  try {
+    // Kullanıcıyı veritabanına ekleme
+    await sql`
+      INSERT INTO users (email, password, name)
+      VALUES (${email}, ${hashedPassword}, ${name})
+    `;
+  } catch (error) {
+    console.log('error nedir : ', error);
+
+    return {
+      message: 'Database Error: Failed to Create User.',
+    };
+  }
+
+  revalidatePath('/login'); // İstediğiniz revalidatePath ve redirect çağrılarını ekleyin
+  redirect('/login');
 }
