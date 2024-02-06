@@ -7,6 +7,7 @@ import {
   LatestInvoiceRaw,
   User,
   Revenue,
+  chargingData
 } from './definitions';
 import { formatCurrency } from './utils';
 import { unstable_noStore as noStore } from 'next/cache';
@@ -235,3 +236,26 @@ export async function getUser(email: string) {
     throw new Error('Failed to fetch user.');
   }
 }
+
+export async function fetchChargingData() {
+  try {
+    const data = await sql<chargingData>`
+      SELECT
+        id,
+        charging_station as "chargingStation",
+        kw_value as "kWValue",
+        date
+      FROM charging_data
+      ORDER BY date DESC
+    `;
+
+    const chargingData = data.rows;
+    console.log("batu:",chargingData);
+    
+    return chargingData;
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to fetch charging data.');
+  }
+}
+

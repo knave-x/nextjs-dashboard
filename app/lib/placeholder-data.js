@@ -8,6 +8,14 @@ const users = [
     password: '123456',
   },
 ];
+const chargingData = [
+  {
+    id: '3958dc9e-712f-4377-85e9-fec4b6a6443a',
+    chargingStation: 'test',
+    kwValue: '32',
+    date: '2023-06-09',
+  },
+];
 
 const customers = [
   {
@@ -185,4 +193,5 @@ module.exports = {
   customers,
   invoices,
   revenue,
+  chargingData
 };

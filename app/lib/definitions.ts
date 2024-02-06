@@ -8,6 +8,12 @@ export type User = {
   email: string;
   password: string;
 };
+export type chargingData = {
+  id: string;
+  chargingStation: string;
+  kwValue: string;
+  date: string;
+};
 
 export type Customer = {
   id: string;

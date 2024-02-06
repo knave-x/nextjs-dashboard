@@ -5,8 +5,49 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { signIn } from '@/auth';
 import { AuthError } from 'next-auth';
-import argon2 from 'argon2';
 import bcrypt from 'bcrypt';
+import dayjs from 'dayjs';
+
+const ChargingFormSchema = z.object({
+  id: z.string(),
+  chargingStation: z.string(),
+  kwValue:z.string(),
+  date: z.string(),
+});
+export type chargingState = {
+  errors?: {
+    chargingStation?: string[];
+    kwValue?: string[];
+  };
+  message?: string | null;
+};
+export async function chargingValue(prevState: chargingState, formData: FormData) {
+  const validatedFields = ChargingValue.safeParse({
+    chargingStation: formData.get('chargingStation'),
+    kwValue: formData.get('kWValue'),
+  });
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Bilgiler gönderilirken hata.',
+    };
+  }
+  const { chargingStation, kwValue } = validatedFields.data;
+  const date = dayjs().format('YYYY-MM-DD');
+  try {
+    // Kullanıcıyı veritabanına ekleme
+    await sql`
+      INSERT INTO charging_data (charging_station, kw_value, date)
+      VALUES (${chargingStation}, ${kwValue}, ${date})
+    `;
+  } catch (error) {
+    console.log('error nedir : ', error);
+
+    return {
+      message: 'Database Error: Failed to Create Charging Data.',
+    };
+  }
+}
 
 export async function signUpUser(prevState: signUpState, formData: FormData) {
   const validatedFields = SignUpUser.safeParse({
@@ -43,7 +84,7 @@ export async function signUpUser(prevState: signUpState, formData: FormData) {
 }
 
 const UserRegistrationSchema = z.object({
-   id: z.string(),
+  id: z.string(),
   name: z.string(),
   email: z.string().email({
     message: 'Please enter a valid email address.',
@@ -75,6 +116,7 @@ const FormSchema = z.object({
 const CreateInvoice = FormSchema.omit({ id: true, date: true });
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
 const SignUpUser = UserRegistrationSchema.omit({ id: true, date: true });
+const ChargingValue = ChargingFormSchema.omit({ id: true, date: true });
 
 export type State = {
   errors?: {
@@ -90,7 +132,6 @@ export type signUpState = {
     name?: string[];
     email?: string[];
     password?: string[];
-    
   };
   message?: string | null;
 };

@@ -4,8 +4,52 @@ const {
   customers,
   revenue,
   users,
+  chargingData
 } = require('../app/lib/placeholder-data.js');
 const bcrypt = require('bcrypt');
+
+async function seedChargingData(client) {
+  try {
+    await client.sql `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`
+
+    // Create the "charging_data" table if it doesn't exist
+    const createTable= await client.sql`
+      CREATE TABLE IF NOT EXISTS charging_data (
+        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        charging_station VARCHAR(255) NOT NULL,
+        kw_value INT NOT NULL,
+        date DATE NOT NULL DEFAULT CURRENT_DATE
+      );
+    `;
+    if (createTable.error) {
+      console.error('Error creating "charging_data" table:', createTable.error);
+      throw createTable.error;
+    }
+
+    console.log(`Created "charging_data" table`);
+
+    // Insert data into the "charging_data" table
+    const insertedChargingData = await Promise.all(
+      chargingData.map( (data) => 
+         client.sql`
+          INSERT INTO charging_data (id, charging_station, kw_value, date)
+          VALUES (${data.id}, ${data.chargingStation}, ${data.kwValue}, ${data.date})
+          ON CONFLICT (id) DO NOTHING;
+        `,
+      ),
+    );
+
+    console.log(`Seeded ${insertedChargingData.length} charging data`);
+
+    return {
+      createTable,
+      chargingData: insertedChargingData,
+    };
+  } catch (error) {
+    console.error('Error seeding charging data:', error);
+    throw error;
+  }
+}
 
 async function seedUsers(client) {
   try {
@@ -167,6 +211,7 @@ async function main() {
   await seedCustomers(client);
   await seedInvoices(client);
   await seedRevenue(client);
+  await seedChargingData(client)
 
   await client.end();
 }
